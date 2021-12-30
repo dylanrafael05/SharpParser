@@ -181,16 +181,20 @@ namespace SharpFormat
         ;
 
         /// <summary>
-        /// Create a concrete version of the method held in <see cref="TryParseStrGenericDefMInfo"/>,
-        /// then call it on the given parameters
+        /// Try to parse an enum value from a given enum type.
+        /// Works with or without .NET Standard 2.1 or greater
         /// </summary>
         public static bool TryParseFromType(Type t, string s, out object value)
         {
+#if NETSTANDARD2_1_OR_GREATER
+            return Enum.TryParse(t, s, out value);
+#else
             var parameters = new object[] { s, Activator.CreateInstance(t) };
             var ret = TryParseStrGenericDefMInfo.MakeGenericMethod(t).Invoke(null, parameters);
             value = parameters[1];
 
             return (bool)ret;
+#endif
         }
     }
 }
