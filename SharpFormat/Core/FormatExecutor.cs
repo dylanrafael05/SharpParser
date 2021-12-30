@@ -62,14 +62,14 @@ namespace SharpFormat
             return t;
         }
         // Parse one command
-        private Dictionary<string, EvaluableItem> ParseCommand()
+        private Dictionary<string, ValueInterface> ParseCommand()
         {
             var open = Require(
                 TokenType.OpenCall,
                 tok => $"Expected opening brace '(', but got {tok.representation}"
             );
 
-            var args = new Dictionary<string, EvaluableItem>();
+            var args = new Dictionary<string, ValueInterface>();
             while (Current.type != TokenType.CloseCall)
             {
                 var argIden = Require(
@@ -106,7 +106,7 @@ namespace SharpFormat
 
             return args;
         }
-        private EvaluableItem ParseSet()
+        private ValueInterface ParseSet()
         {
             var eq = Require(
                 TokenType.Equals,
