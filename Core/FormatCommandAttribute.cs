@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Reflection;
 
-namespace SharpFormat
+namespace SharpParser
 {
     /// <summary>
     /// The attribute which denotes that a given method of a direct subclass of <see cref="FormatReader"/> is a command.

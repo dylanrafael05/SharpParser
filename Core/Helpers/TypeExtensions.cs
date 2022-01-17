@@ -1,8 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Reflection;
+using System.Linq;
 
-namespace SharpFormat
+namespace SharpParser.Helpers
 {
     public static class TypeExtensions
     {
@@ -11,15 +10,17 @@ namespace SharpFormat
         /// </summary>
         public static bool TypeIsSupported(Type t)
         {
-            return (
+            return
                 t == typeof(string) ||
                 t == typeof(float) ||
                 t == typeof(int) ||
                 t == typeof(bool) ||
                 t == typeof(object) ||
                 t.IsEnum ||
-                (Nullable.GetUnderlyingType(t) is var ut && ut != null && TypeIsSupported(ut))
-            );
+                (Nullable.GetUnderlyingType(t) is var ut && ut != null && TypeIsSupported(ut)) ||
+                (ValueTupleExtensions.UnderlyingTypes(t) is var underlyingTypes && underlyingTypes != null && underlyingTypes.All(ut1=> TypeIsSupported(ut1.Type))) ||
+                (ArrayExtensions.UnderlyingType(t) is var underlyingType && underlyingType != null && TypeIsSupported(underlyingType))
+            ;
         }
 
         /// <summary>
@@ -56,55 +57,27 @@ namespace SharpFormat
             {
                 return $"nullable {TypeName(ut)}";
             }
+            else if(ValueTupleExtensions.UnderlyingTypes(t) is var uts && uts != null)
+            {
+                if(uts.Length == 1)
+                {
+                    return $"tuple of {TypeName(uts[0].Type)}";
+                }
+                else if(uts.Length == 2)
+                {
+                    return $"tuple of {TypeName(uts[0].Type)} and {TypeName(uts[1].Type)}";
+                }
+                else
+                {
+                    return $"tuple of " + string.Join(", ", uts.Take(uts.Length - 1)) + $", and {uts[uts.Length - 1].Type}";
+                }
+            }
+            else if(ArrayExtensions.UnderlyingType(t) is var underlyingType && underlyingType != null)
+            {
+                return $"array of {TypeName(underlyingType)}";
+            }
 
             throw new Exception("Source code error: unsupported type.");
-        }
-    }
-
-    /// <summary>
-    /// The types which a token can be
-    /// </summary>
-    internal enum TokenType
-    {
-        Number,
-        String,
-        Id,
-        OpenCall,
-        Equals,
-        Comma,
-        CloseCall,
-        NullBang,
-        EOS,
-        OpenObject,
-        CloseObject,
-    }
-
-    /// <summary>
-    /// Helper functions for TokenType
-    /// </summary>
-    internal static class TokenTypeHelpers
-    {
-        public static bool IsValue(this TokenType tokenType)
-            => tokenType == TokenType.Number || tokenType == TokenType.Id || tokenType == TokenType.String || tokenType == TokenType.NullBang;
-    }
-
-    /// <summary>
-    /// A basic unit of the format reader format
-    /// </summary>
-    internal class Token
-    {
-        public TokenType type;
-        public string representation;
-        public LiteralItem value;
-
-        public Token(object value)
-        {
-            this.value = new LiteralItem(value);
-        }
-
-        public Token()
-        {
-            value = null;
         }
     }
 }
