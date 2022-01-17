@@ -54,7 +54,7 @@ namespace SharpParser.Model
             if (IsVoid)
                 throw new Exception("Cannot access a void value.");
 
-            return GetAsInt();
+            return GetAsIntInternal();
         }
 
         public virtual object GetAsFloatInternal()
