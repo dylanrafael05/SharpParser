@@ -2,7 +2,7 @@
 using System.Reflection;
 using System.Linq;
 
-namespace SharpFormat
+namespace SharpParser.Helpers
 {
     /// <summary>
     /// Holds extensions and helpers for the enums.

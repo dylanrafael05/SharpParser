@@ -1,9 +1,8 @@
 ﻿using System.Collections.Generic;
 using System.Reflection;
 
-namespace SharpFormat
+namespace SharpParser.Model
 {
-
     /// <summary>
     /// The types which a token can be
     /// </summary>
@@ -20,6 +19,7 @@ namespace SharpFormat
         EOS,
         OpenObject,
         CloseObject,
+        PropSet,
     }
 
     /// <summary>

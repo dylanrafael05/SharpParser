@@ -1,5 +1,5 @@
 ﻿using System;
-using SharpFormat;
+using SharpParser;
 
 /// <summary>
 /// An example of how to use the <see cref="FormatReader"/> API.
@@ -14,7 +14,8 @@ public class ExampleReader : FormatReader
 
     /// <summary>
     /// A simple command, defined using the [FormatCommand] attribute.
-    /// Can be called from the input using 'COMMAND(ARG=VALUE)' syntax.
+    /// Can be called from the input using 'COMMAND(ARG=VALUE)' syntax,
+    /// or 'COMMAND(VALUE)' syntax if preferred.
     /// </summary>
     [FormatCommand]
     public void HelloWorld()

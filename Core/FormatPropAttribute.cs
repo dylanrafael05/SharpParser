@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Reflection;
 
-namespace SharpFormat
+namespace SharpParser
 {
     /// <summary>
     /// The attribute which denotes that a given property of a direct subclass of <see cref="FormatReader"/> is a property command.

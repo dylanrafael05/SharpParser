@@ -1,11 +1,13 @@
-﻿using System;
+﻿using SharpParser.Helpers;
+using SharpParser.Model;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 
-namespace SharpFormat
+namespace SharpParser
 {
     /// <summary>
     /// A class which represents a reader for a specific format.
@@ -77,19 +79,19 @@ namespace SharpFormat
             var props = t.GetProperties()
                 .Where(p => p.CustomAttributes.Any(a => a.AttributeType == typeof(FormatPropAttribute)));
 
-            foreach(var method in methods)
+            foreach (var method in methods)
             {
                 var commandName = method.GetCustomAttribute<FormatCommandAttribute>().Name;
                 commandName = commandName ?? method.Name;
 
-                if(!IsIdentifier(commandName))
+                if (!IsIdentifier(commandName))
                 {
                     throw new Exception($"Source code error: invalid name for command: '{commandName}'");
                 }
 
                 var methodParameters = method.GetParameters();
 
-                foreach(var param in methodParameters)
+                foreach (var param in methodParameters)
                 {
                     if (!TypeExtensions.TypeIsSupported(param.ParameterType))
                     {
@@ -105,8 +107,12 @@ namespace SharpFormat
 
                 commandInfo.commands.Add(
                     commandName,
-                    (cmd: (reader, args) => MethodCall(reader, args, paramsMap, method, commandName),
-                     isVoid: method.ReturnType == typeof(void))
+                    new Command
+                    {
+                        Explicit = (reader, args) => ExplicitMethodCall(reader, args, paramsMap, method, commandName),
+                        NonExplicit = (reader, args) => NonExplicitMethodCall(reader, args, method, commandName),
+                        IsVoid = method.ReturnType == typeof(void)
+                    }
                 );
             }
 
@@ -145,7 +151,7 @@ namespace SharpFormat
                 str.Skip(1).All(ch => char.IsLetterOrDigit(ch) || ch == '_');
         }
 
-        private static ValueInterface MethodCall(FormatReader reader, Dictionary<string, ValueInterface> args, Dictionary<string, ParameterInfo> paramsMap, MethodInfo method, string commandName)
+        private static ValueInterface ExplicitMethodCall(FormatReader reader, Dictionary<string, ValueInterface> args, Dictionary<string, ParameterInfo> paramsMap, MethodInfo method, string commandName)
         {
             var parameters = new object[paramsMap.Count];
             foreach (var info in paramsMap.Values)
@@ -192,8 +198,31 @@ namespace SharpFormat
                 throw new Exception($"Error in command '{commandName}': {ex.Message}");
             }
         }
+        private static ValueInterface NonExplicitMethodCall(FormatReader reader, ValueInterface[] args, MethodInfo method, string commandName)
+        {
+            var parameters = new object[args.Length];
+            var methodParamTypes = method.GetParameters();
 
-        private static void PropertyCall(FormatReader reader, ValueInterface arg, PropertyInfo prop, string commandName)
+            for (int i = 0; i < args.Length; i++)
+            {
+                parameters[i] = args[i].GetterForType(methodParamTypes[i].ParameterType)();
+            }
+
+            try
+            {
+                return new ValueInterface(method.Invoke(reader, parameters));
+            }
+            catch (TargetInvocationException ex)
+            {
+                throw new Exception($"Error in command '{commandName}': {ex.InnerException.Message}");
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Error in command '{commandName}': {ex.Message}");
+            }
+        }
+
+        private static ValueInterface PropertyCall(FormatReader reader, ValueInterface arg, PropertyInfo prop, string commandName)
         {
             try
             {
@@ -203,6 +232,8 @@ namespace SharpFormat
                 argForProp = getter();
 
                 prop.SetMethod.Invoke(reader, new object[] { argForProp });
+
+                return ValueInterface.Void;
             }
             catch (TargetInvocationException ex)
             {
@@ -214,9 +245,14 @@ namespace SharpFormat
             }
         }
 
-        public void Evaluate(string text)
+        public virtual void BeforeEval() {}
+        public virtual void AfterEval() {}
+
+        public void Evaluate(string text, string sourceName = "UNKNOWN")
         {
-            FormatExecutor.FromText(text, this).Execute();
+            BeforeEval();
+            FormatExecutor.FromText(text, sourceName, this).Execute();
+            AfterEval();
         }
     }
 }

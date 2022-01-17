@@ -1,8 +1,9 @@
-﻿using System;
+﻿using SharpParser.Model;
+using System;
 using System.Collections.Generic;
 using System.Reflection;
 
-namespace SharpFormat
+namespace SharpParser
 {
     /// <summary>
     /// The class responsible for breaking input text into <see cref="Token"/>s.
@@ -12,25 +13,54 @@ namespace SharpFormat
         private const char EOS = '\0';
 
         private int idx;
+        private SourceLocation loc;
         private string text;
 
-        public FormatLexer(string text)
+        public FormatLexer(string text, string sourceName)
         {
             this.text = text;
             idx = 0;
+            loc = new SourceLocation
+            {
+                Line = 1,
+                Chracter = 1,
+                SourceName = sourceName
+            };
         }
 
         // A helper function to safely get the current char
         private char Get() => idx >= text.Length ? EOS : text[idx];
+        private void Advance(int count = 1)
+        {
+            idx += count;
+            loc.Chracter += count;
+        }
 
         // A helper function which skips to the next character while the predicate returns true
         private void SkipWhile(Predicate<char> pred)
         {
             while (pred(Get()) && Get() != EOS)
             {
-                idx++;
+                Advance();
             }
         }
+
+        private void SkipLines()
+        {
+            while (Get() == '\n' || Get() == '\r')
+            {
+                if (Get() == '\r')
+                {
+                    Advance();
+                    continue;
+                }
+
+                Advance();
+                loc.Line++;
+                loc.Chracter = 1;
+            }
+        }
+
         // A helper function which reads the text upto the first character where the predicate 
         // returns false
         private string ReadWhile(Predicate<char> pred)
@@ -52,7 +82,7 @@ namespace SharpFormat
             {
                 if (!float.TryParse(section, out var valueFloat))
                 {
-                    throw new ArgumentException($"Invalid number: '{section}'.");
+                    throw new ArgumentException($"Invalid number: '{section}' ({loc})");
                 }
 
                 if (isNegative) valueFloat = -valueFloat;
@@ -62,14 +92,14 @@ namespace SharpFormat
             {
                 if (!int.TryParse(section, out var valueInt))
                 {
-                    throw new ArgumentException($"Invalid integer: '{section}'.");
+                    throw new ArgumentException($"Invalid integer: '{section}' ({loc})");
                 }
 
                 if (isNegative) valueInt = -valueInt;
                 value = valueInt;
             }
 
-            return new Token(value) { type = TokenType.Number, representation = $"'{section}'" };
+            return new Token(value, loc) { type = TokenType.Number, representation = $"'{section}'" };
         }
 
         public IEnumerator<Token> Lex()
@@ -81,49 +111,61 @@ namespace SharpFormat
                 {
                     // End of string
                     case EOS:
-                        yield return new Token { type = TokenType.EOS, representation = "end of string" };
+                        yield return new Token(loc) { type = TokenType.EOS, representation = "end of string" };
                         break;
 
                     // Control characters
                     case '(':
-                        yield return new Token { type = TokenType.OpenCall, representation = "'('" };
-                        idx++;
+                        yield return new Token(loc) { type = TokenType.OpenCall, representation = "'('" };
+                        Advance();
                         break;
                     case ')':
-                        yield return new Token { type = TokenType.CloseCall, representation = "')'" };
-                        idx++;
+                        yield return new Token(loc) { type = TokenType.CloseCall, representation = "')'" };
+                        Advance();
                         break;
                     case '{':
-                        yield return new Token { type = TokenType.OpenObject, representation = "'{'" };
-                        idx++;
+                        yield return new Token(loc) { type = TokenType.OpenObject, representation = "'{'" };
+                        Advance();
                         break;
                     case '}':
-                        yield return new Token { type = TokenType.CloseObject, representation = "'}'" };
-                        idx++;
+                        yield return new Token(loc) { type = TokenType.CloseObject, representation = "'}'" };
+                        Advance();
                         break;
                     case '=':
-                        yield return new Token { type = TokenType.Equals, representation = "'='" };
-                        idx++;
+                        yield return new Token(loc) { type = TokenType.Equals, representation = "'='" };
+                        Advance();
                         break;
                     case ',':
-                        yield return new Token { type = TokenType.Comma, representation = "','" };
-                        idx++;
+                        yield return new Token(loc) { type = TokenType.Comma, representation = "','" };
+                        Advance();
                         break;
                     case '!':
-                        yield return new Token(null) { type = TokenType.NullBang, representation = "'!'" };
-                        idx++;
+                        yield return new Token(null, loc) { type = TokenType.NullBang, representation = "'!'" };
+                        Advance();
                         break;
+                    case ':':
+                    {
+                        Advance();
+                        if (Get() != '=')
+                        {
+                            throw new Exception("Unrecognized character ':', did you mean ':='?");
+                        }
+                        yield return new Token(loc) { type = TokenType.PropSet, representation = "':='" };
+                        Advance();
+
+                        break;
+                    }
 
                     // Negative number
                     case '-':
-                        idx++;
+                        Advance();
                         yield return ReadNumber(true);
                         break;
 
                     // String
                     case '"':
                     {
-                        idx++;
+                        Advance();
                         var section = ReadWhile(ch => ch != '"');
 
                         if (Get() == EOS)
@@ -131,18 +173,21 @@ namespace SharpFormat
                             throw new Exception("Unterminated string");
                         }
 
-                        idx++;
+                        Advance();
 
-                        yield return new Token(section) { type = TokenType.String, representation = $"'{section}'" };
+                        yield return new Token(section, loc) { type = TokenType.String, representation = $"'{section}'" };
                         break;
                     }
 
                     // Whitespace
                     case ' ':
                     case '\t':
+                        SkipWhile(c => c == ' ' || c == '\t');
+
+                        break;
                     case '\n':
                     case '\r':
-                        SkipWhile(c => c == ' ' || c == '\t' || c == '\n' || c == '\r');
+                        SkipLines();
                         break;
 
                     // Other cases
@@ -157,12 +202,12 @@ namespace SharpFormat
                         else if (char.IsLetter(Get()) || Get() == '_')
                         {
                             var section = ReadWhile(c => char.IsLetterOrDigit(c) || c == '_');
-                            yield return new Token(section) { type = TokenType.Id, representation = $"'{section}'" };
+                            yield return new Token(section, loc) { type = TokenType.Id, representation = $"'{section}'" };
                         }
                         // Unrecognized characters
                         else
                         {
-                            throw new Exception($"Unrecognized character '{Get()}'");
+                            throw new Exception($"Unrecognized character '{Get()}' ({loc})");
                         }
 
                         break;
