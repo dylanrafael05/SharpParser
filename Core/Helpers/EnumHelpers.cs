@@ -12,18 +12,10 @@ namespace SharpParser.Helpers
         /// <summary>
         /// Holds a MethodInfo corresponding to <see cref="Enum.TryParse{TEnum}(string, out TEnum)"/>.
         /// </summary>
-        public static MethodInfo TryParseStrGenericDefMInfo { get; } =
-
+        private static MethodInfo TryParseGen =
             typeof(Enum)
-            .GetMethods(BindingFlags.Public)
-            .First(
-                m => m.Name == "TryParse"
-                    && m.IsGenericMethod
-                    && m.GetParameters() is var parameters
-                    && parameters[0].ParameterType == typeof(string)
-                    && parameters[1].IsOut
-            )
-
+            .GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .First(m => m.Name == "TryParse" && m.GetParameters().Length == 2 && m.GetGenericArguments().Length == 1)
         ;
 
         /// <summary>
@@ -36,7 +28,7 @@ namespace SharpParser.Helpers
             return Enum.TryParse(t, s, out value);
 #else
             var parameters = new object[] { s, Activator.CreateInstance(t) };
-            var ret = TryParseStrGenericDefMInfo.MakeGenericMethod(t).Invoke(null, parameters);
+            var ret = TryParseGen.MakeGenericMethod(t).Invoke(null, parameters);
             value = parameters[1];
 
             return (bool)ret;
